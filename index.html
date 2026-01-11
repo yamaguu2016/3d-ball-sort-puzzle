@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>改良版 3Dボールソートパズル</title>
+    <style>
+        :root {
+            --icon-size: 48px;
+            --gap-size: 15px;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #333;
+            background-color: #000;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+        
+        #title-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0,0,0,0.3);
+            z-index: 2000;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+        #title-screen h1 {
+            font-size: clamp(2.5rem, 10vw, 5rem);
+            color: white;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5), 0 0 20px rgba(255,255,255,0.5);
+            margin-bottom: 40px;
+        }
+        #start-button {
+            padding: 20px 60px;
+            font-size: 2rem;
+            color: white;
+            background: linear-gradient(145deg, #ff5722, #e64a19);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s ease;
+            animation: pulse 2s infinite;
+        }
+        #start-button:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+        }
+        #start-button:active {
+            transform: translateY(1px) scale(0.95);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        #game-container {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+
+        .top-ui-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .top-ui-container .icon-button-group {
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+        }
+        .top-ui-container .icon-button-group button {
+             width: var(--icon-size);
+            height: var(--icon-size);
+            background: rgba(0,0,0,0.4);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+         .top-ui-container .icon-button-group button:hover {
+            background: rgba(0,0,0,0.6);
+         }
+        #level-display {
+            background: rgba(0,0,0,0.4);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        #instructions {
+            position: absolute;
+            top: 65px;
+            left: 15px;
+            background: rgba(0,0,0,0.4);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        #icon-toolbar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: var(--gap-size);
+            z-index: 100;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 50px;
+            backdrop-filter: blur(5px);
+        }
+        #icon-toolbar button {
+            width: var(--icon-size);
+            height: var(--icon-size);
+            padding: 0;
+            font-size: 24px;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #icon-toolbar button:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        #icon-toolbar button:disabled {
+            background: #ccc !important;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .tooltip {
+            visibility: hidden;
+            width: 120px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #555 transparent transparent transparent;
+        }
+
+        #restart-button { background: linear-gradient(145deg, #6c757d, #5a6268); }
+        #undo-button { background: linear-gradient(145deg, #ffc107, #d39e00); }
+        #add-tube-button { background: linear-gradient(145deg, #28a745, #218838); }
+        #hint-button { background: linear-gradient(145deg, #17a2b8, #138496); }
+        #auto-solve-button { background: linear-gradient(145deg, #f44336, #d32f2f); }
+        #layout-toggle-button { background: linear-gradient(145deg, #9c27b0, #7b1fa2); }
+        #voice-toggle-button { background: linear-gradient(145deg, #4CAF50, #45a049); }
+        #voice-toggle-button.active { background: linear-gradient(145deg, #f44336, #d32f2f); }
+        #settings-button { background: linear-gradient(145deg, #3f51b5, #303f9f); }
+        #new-game-button { background: linear-gradient(145deg, #ff9800, #f57c00); }
+        #hint-button.searching, #auto-solve-button.searching { background: linear-gradient(145deg, #dc3545, #c82333); }
+
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+        }
+        #settings-modal {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 400px;
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            z-index: 1001;
+        }
+        #settings-modal h2 { margin-top: 0; }
+        #settings-modal .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        #settings-modal .settings-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #settings-modal select, #settings-modal button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        #apply-settings-button {
+            grid-column: 1 / -1;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #win-message {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 40px 60px;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            border-radius: 15px;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 200;
+            animation: fadeIn 0.5s ease;
+        }
+        #win-message button {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            color: white;
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -40%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        
+        #solver-log-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 250px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+            color: white;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column-reverse;
+            overflow: hidden;
+            z-index: 99;
+        }
+        #solver-log {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        #solver-log p {
+            margin: 2px 0;
+            padding: 0;
+            animation: logFadeIn 0.3s ease;
+        }
+        @keyframes logFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .hint-pointer {
+            position: absolute;
+            font-size: 40px;
+            display: none;
+            z-index: 1001;
+            pointer-events: none;
+            transform: translateX(-50%);
+            text-shadow: 0 0 5px black;
+            animation: bobbing 1s ease-in-out infinite;
+        }
+        #hint-pointer-from { color: #007bff; }
+        #hint-pointer-to { color: #28a745; }
+        @keyframes bobbing {
+            0% { transform: translate(-50%, -120%); }
+            50% { transform: translate(-50%, -140%); }
+            100% { transform: translate(-50%, -120%); }
+        }
+
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 1999;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            opacity: 0.7;
+            animation: fall 5s linear forwards;
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        #tutorial-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1500;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+        #tutorial-text {
+            font-size: 1.5rem;
+            padding: 20px;
+        }
+        #tutorial-pointer {
+            position: absolute;
+            font-size: 50px;
+            animation: bobbing-tutorial 1s ease-in-out infinite;
+            transform-origin: top left;
+        }
+        @keyframes bobbing-tutorial {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        @media (max-width: 768px) {
+             #icon-toolbar {
+                flex-direction: row;
+                top: auto;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: auto;
+                background: rgba(255,255,255,0.8);
+                padding: 10px;
+                border-radius: 50px;
+            }
+            .tooltip { display: none; }
+            #solver-log-container {
+                bottom: 90px;
+                left: 10px;
+                width: calc(100% - 20px);
+                height: 100px;
+                font-size: 12px;
+            }
+            #win-message {
+                font-size: 24px;
+                padding: 30px 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="title-screen">
+        <h1>3Dボールソートパズル</h1>
+        <button id="start-button">スタート</button>
+    </div>
+
+    <div id="game-container">
+        <div class="top-ui-container">
+            <div id="level-display">Level 1</div>
+            <div id="instructions">
+                <b>操作:</b> 右ドラッグでカメラ回転 / 左クリックでボール選択
+            </div>
+            <div class="icon-button-group">
+                <button id="new-game-button" title="新しいゲーム">🎲</button>
+                <button id="restart-button" title="リスタート">🔄</button>
+                <button id="settings-button" title="設定">⚙️</button>
+            </div>
+        </div>
+
+        <div id="icon-toolbar">
+            <button id="undo-button"><span class="tooltip">元に戻す</span>↩️</button>
+            <button id="add-tube-button"><span class="tooltip">試験管を追加</span>➕</button>
+            <button id="hint-button"><span class="tooltip">ヒント</span>💡</button>
+            <button id="auto-solve-button"><span class="tooltip">自動で解く</span>🤖</button>
+            <button id="layout-toggle-button"><span class="tooltip">レイアウト変更</span>🔲</button>
+            <button id="voice-toggle-button"><span class="tooltip">音声案内</span>🎤</button>
+        </div>
+
+        <div id="modal-overlay"></div>
+        <div id="settings-modal">
+            <h2>設定</h2>
+            <div class="settings-grid">
+                <div class="settings-item">
+                    <label for="tube-select">試験管の数:</label>
+                    <select id="tube-select"></select>
+                </div>
+                <div class="settings-item">
+                    <label for="theme-select">シーンテーマ:</label>
+                    <select id="theme-select">
+                        <option value="classic">クラシック</option>
+                        <option value="nature">ネイチャー</option>
+                        <option value="cyber">サイバー</option>
+                        <option value="sweets">スイーツの国</option>
+                        <option value="toybox">おもちゃの部屋</option>
+                    </select>
+                </div>
+                <div class="settings-item">
+                    <label for="ball-theme-select">ボールテーマ:</label>
+                    <select id="ball-theme-select">
+                        <option value="color">カラーボール</option>
+                        <option value="emoji_animal">動物</option>
+                        <option value="emoji_sweets">スイーツ</option>
+                        <option value="emoji_sea">海の仲間</option>
+                        <option value="emoji_sports">スポーツ</option>
+                    </select>
+                </div>
+            </div>
+            <br>
+            <button id="apply-settings-button">適用して新しいゲーム</button>
+        </div>
+
+        <div id="win-message">
+            クリア！<br>おめでとうございます！
+            <button id="next-level-button">次のレベルへ</button>
+        </div>
+        
+        <div id="solver-log-container">
+            <div id="solver-log"></div>
+        </div>
+        <div id="hint-pointer-from" class="hint-pointer">📤</div>
+        <div id="hint-pointer-to" class="hint-pointer">📥</div>
+        <div id="confetti-container"></div>
+        <div id="tutorial-overlay">
+            <div id="tutorial-text"></div>
+            <div id="tutorial-pointer">👆</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/OutlinePass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <script>
+    /*********************************
+     * WEB WORKER CODE (for Solver) *
+     *********************************/
+    const workerCode = `
+        class MinPQ{constructor(){this.heap=[]}push(e){this.heap.push(e),this.bubbleUp(this.heap.length-1)}pop(){const e=this.heap[0],t=this.heap.pop();return this.heap.length>0&&(this.heap[0]=t,this.sinkDown(0)),e}isEmpty(){return 0===this.heap.length}bubbleUp(e){const t=this.heap[e];for(;e>0;){const s=Math.floor((e-1)/2),o=this.heap[s];if(t.f>=o.f)break;this.heap[s]=t,this.heap[e]=o,e=s}}sinkDown(e){const t=this.heap.length,s=this.heap[e],o=s.f;for(;;){let h=2*(e+1),l=h-1,r=null;if(l<t){const n=this.heap[l];n.f<o&&(r=l)}if(h<t){const a=this.heap[h];a.f<(null===r?o:this.heap[r].f)&&(r=h)}if(null===r)break;this.heap[e]=this.heap[r],this.heap[r]=s,e=r}}}self.onmessage=function(e){const{tubeData:t,TUBE_COUNT:s,BALLS_PER_TUBE:o}=e.data,h=solveAStar(t,s,o);self.postMessage(h)};function heuristic(e,t){let s=0;for(const o of e){if(0===o.length)continue;const h=o[0];if(o.length===t&&o.every(e=>e===h))continue;s++;for(let l=1;l<o.length;l++)o[l]!==o[l-1]&&(s+=1)}return s}function stateKey(e){return e.map(e=>e.join(",")).sort().join("|")}function isGoal(e,t){for(const s of e)if(s.length>0&&(s.length!==t||!s.every(e=>e===s[0])))return!1;return!0}function getLegalMoves(e,t,s){const o=[];let h=e.map(e=>e.length>0?e[e.length-1]:null);for(let l=0;l<t;l++){const r=e[l];if(0!==r.length&&!(r.length===s&&r.every(e=>e===r[0]))){const n=h[l];let a=1;for(let c=r.length-2;c>=0&&r[c]===n;c--)a++;for(let i=0;i<t;i++){if(l===i)continue;const u=e[i];if(u.length!==s&&!(u.length>0&&h[i]!==n)){if(0===u.length){let p=!1;for(let f=0;f<t;f++)f!==l&&f!==i&&e[f].length>0&&h[f]===n&&e[f].length<s&&(p=!0);if(p)continue}const d=s-u.length,g=Math.min(a,d);o.push({from:l,to:i,count:g})}}}}return o.sort(()=>.5-Math.random())}function applyMove(e,t){const s=e.map(e=>[...e]),o=s[t.from],h=s[t.to];for(let l=0;l<t.count;l++)h.push(o.pop());return s}function solveAStar(e,t,s){const o={state:e,g:0,h:heuristic(e,s),f:heuristic(e,s),path:[]},h=new MinPQ;h.push(o);const l=new Set([stateKey(e)]);let r=0;for(;!h.isEmpty()&&r<15e4;){r++;const n=h.pop();if(isGoal(n.state,s))return n.path;const a=getLegalMoves(n.state,t,s);for(const c of a){if(n.path.length>0){const i=n.path[n.path.length-1];if(i.from===c.to&&i.to===c.from)continue}const u=applyMove(n.state,c),p=stateKey(u);if(l.has(p))continue;l.add(p);const f=n.g+1,d=heuristic(u,s),g=f+d,m={state:u,g:f,h:d,f:g,path:n.path.concat(c)};h.push(m)}}return null};
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+
+    // --- Global Variables ---
+    let scene, camera, renderer, controls, ground, wall, starfield;
+    let raycaster, mouse;
+    let composer, outlinePassSource, outlinePassDestination;
+    let clock = new THREE.Clock();
+    
+    // --- Game State & Settings ---
+    let TUBE_COUNT = 6;
+    const ALL_BALL_COLORS = [
+        0xe6194B, 0x3cb44b, 0xf58231, 0x42d4f4, 0x4363d8, 0x911eb4, 0xf032e6, 0x800000,
+        0x9A6324, 0x808000, 0x000075, 0xa9a9a9, 0xffd8b1, 0xffe119, 0x00ced1, 0xff1493,
+        0x7fff00, 0x1e90ff, 0xd2f53c, 0xfabebe, 0x008080, 0xe6beff, 0xaa6e28, 0xfffac8,
+        0x9932CC, 0xaaffc3, 0x708090, 0xFFD700, 0x556b2f, 0xff8c00
+    ]; // 30 unique colors
+    let CURRENT_BALL_COLORS = [];
+    const BALLS_PER_TUBE = 4;
+    const TUBE_HEIGHT = 6;
+    const LIFT_HEIGHT = 7.5;
+    const ANIMATION_DELAY = 120; // ms
+
+    let tubes = [], tubeHitboxes = [], tubeData = [], ballMeshes = [], numberSprites = [];
+    let initialTubeData = []; // For restarting the level
+    let selectedTubeIndex = null;
+    let selectedBallMesh = null;
+    let isAnimating = false;
+    let isSolving = false; 
+    
+    let moveHistory = [];
+    let extraTubeAdded = false;
+    let solverWorker;
+    let hintMove = null;
+    let isSpecialStage = false;
+
+    // --- Layout & Theme State ---
+    let currentLayout = 'circle';
+    let currentSceneTheme = 'classic';
+    let currentBallTheme = 'color';
+    const sceneThemes = {
+        'classic': { floor: createMarbleFloorTexture, background: 0xf0f2f5, fog: 0xf0f2f5, type: 'static' },
+        'nature': { floor: createWoodFloorTexture, background: 0x28343b, fog: 0x28343b, type: 'static' },
+        'cyber': { floor: createSciFiGridTexture, background: 0x0a0a1a, fog: 0x0a0a1a, type: 'static' },
+        'sweets': { floor: createSweetsTexture, background: 0xffd1dc, fog: 0xffd1dc, type: 'static' },
+        'toybox': { floor: createToyboxTexture, background: 0x87ceeb, fog: 0x87ceeb, type: 'static' },
+        'galaxy': { background: 0x000010, fog: 0x000010, type: 'dynamic' }
+    };
+    const ballThemes = {
+        'color': { type: 'color' },
+        'emoji_animal': { type: 'emoji', characters: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐽', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛'] },
+        'emoji_sweets': { type: 'emoji', characters: ['🎂', '🍰', '🧁', '🥧', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯', '🥛', '🍼', '☕', '🍵', '🧃', '🥤', '🍦', '🍧', '🍨', '🥨', '🧇', '🥞', '🧈', '🍳', '🌭', '🍔'] },
+        'emoji_sea': { type: 'emoji', characters: ['🐠', '🐡', '🐙', '🦑', '🦐', '🦞', '🦀', '🐬', '🐳', '🐋', '🦈', '🐚', '🪸', ' jellyfish', ' starfish', ' sea urchin', ' sea cucumber', ' sea lion', ' seal', ' otter', ' penguin', ' walrus', ' sea turtle', ' fish', ' tropical fish', ' blowfish', ' shrimp', ' lobster', ' crab', ' squid'] },
+        'emoji_sports': { type: 'emoji', characters: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🏹', '🎣', '🥊', '🥋', '🎽', '🛹', '🛼', '⛸️', '🎿', '🛷', '🎳'] }
+    };
+    let emojiMap = {};
+
+    let particleEffects = [];
+
+    // --- Web Speech API State ---
+    let isVoiceGuidanceEnabled = false;
+    let synth = window.speechSynthesis;
+    let japaneseVoice;
+
+    // --- Tutorial & Level State ---
+    let tutorialStep = 0;
+    let tutorialActive = false;
+    let tutorialMove = null;
+    let currentLevel = 1;
+    let solverAttempt = 0;
+
+    // --- DOM Elements ---
+    const tubeSelect = document.getElementById('tube-select');
+    const themeSelect = document.getElementById('theme-select');
+    const ballThemeSelect = document.getElementById('ball-theme-select');
+    const applySettingsBtn = document.getElementById('apply-settings-button');
+    const undoBtn = document.getElementById('undo-button');
+    const restartBtn = document.getElementById('restart-button');
+    const addTubeBtn = document.getElementById('add-tube-button');
+    const hintBtn = document.getElementById('hint-button');
+    const autoSolveBtn = document.getElementById('auto-solve-button');
+    const layoutToggleBtn = document.getElementById('layout-toggle-button');
+    const voiceToggleBtn = document.getElementById('voice-toggle-button');
+    const winMessage = document.getElementById('win-message');
+    const solverLog = document.getElementById('solver-log');
+    const settingsBtn = document.getElementById('settings-button');
+    const newGameBtn = document.getElementById('new-game-button');
+    const settingsModal = document.getElementById('settings-modal');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const titleScreen = document.getElementById('title-screen');
+    const startButton = document.getElementById('start-button');
+    const gameContainer = document.getElementById('game-container');
+    const instructions = document.getElementById('instructions');
+    const hintPointerFrom = document.getElementById('hint-pointer-from');
+    const hintPointerTo = document.getElementById('hint-pointer-to');
+    const tutorialOverlay = document.getElementById('tutorial-overlay');
+    const tutorialText = document.getElementById('tutorial-text');
+    const tutorialPointer = document.getElementById('tutorial-pointer');
+    const nextLevelBtn = document.getElementById('next-level-button');
+
+    // --- Texture Functions ---
+    function createMarbleFloorTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#EAEAEA';
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.globalAlpha = 0.07;
+        for (let i = 0; i < 15; i++) {
+            ctx.beginPath();
+            ctx.moveTo(Math.random() * 512, Math.random() * 512);
+            ctx.bezierCurveTo(Math.random() * 512, Math.random() * 512, Math.random() * 512, Math.random() * 512, Math.random() * 512, Math.random() * 512);
+            ctx.lineWidth = Math.random() * 30 + 5;
+            ctx.strokeStyle = `rgba(0, 0, 0, ${Math.random() * 0.5})`;
+            ctx.stroke();
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(5, 5);
+        return texture;
+    }
+
+    function createWoodFloorTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#8B4513'; // SaddleBrown
+        ctx.fillRect(0, 0, 128, 1024);
+        for (let i = 0; i < 40; i++) {
+            ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.15})`;
+            ctx.fillRect(Math.random() * 128, 0, Math.random() * 10, 1024);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(20, 2.5);
+        return texture;
+    }
+
+    function createSciFiGridTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0a0a1a';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5;
+        for (let i = 0; i <= 256; i += 32) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i, 256);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(256, i);
+            ctx.stroke();
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(20, 20);
+        return texture;
+    }
+    
+    function createSweetsTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#F8DE7E'; // Cookie color
+        ctx.fillRect(0, 0, 256, 256);
+        const sprinkles = ['#ff69b4', '#00bfff', '#32cd32', '#ffc0cb', '#ffff00'];
+        for (let i = 0; i < 200; i++) {
+            ctx.fillStyle = sprinkles[Math.floor(Math.random() * sprinkles.length)];
+            ctx.fillRect(Math.random() * 256, Math.random() * 256, 4, 10);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(10, 10);
+        return texture;
+    }
+
+    function createToyboxTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#add8e6'; // Light blue
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = 'white';
+        for (let i = 0; i < 50; i++) {
+            ctx.fillText('⭐', Math.random() * 256, Math.random() * 256);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(10, 10);
+        return texture;
+    }
+    
+    function createGalaxyBackground() {
+        const vertices = [];
+        for (let i = 0; i < 10000; i++) {
+            const x = THREE.MathUtils.randFloatSpread(2000);
+            const y = THREE.MathUtils.randFloatSpread(2000);
+            const z = THREE.MathUtils.randFloatSpread(2000);
+            vertices.push(x, y, z);
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        const material = new THREE.PointsMaterial({ color: 0x888888 });
+        const stars = new THREE.Points(geometry, material);
+        return stars;
+    }
+
+    function createEmojiTexture(emoji) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#E8E8E8'; // Light gray background
+        context.fillRect(0, 0, 256, 256);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.font = '200px sans-serif';
+        context.fillText(emoji, 128, 128);
+        return new THREE.CanvasTexture(canvas);
+    }
+    
+    function createHiddenBallTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#222';
+        context.fillRect(0, 0, 256, 256);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = 'white';
+        context.font = 'bold 180px sans-serif';
+        context.fillText('?', 128, 128);
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    function createNumberSprite(number) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        context.beginPath();
+        context.arc(32, 32, 28, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = 'white';
+        context.font = 'bold 32px sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(number, 32, 32);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(1.5, 1.5, 1.5);
+        return sprite;
+    }
+    
+    function hideHintPointers() {
+        if (hintPointerFrom) hintPointerFrom.style.display = 'none';
+        if (hintPointerTo) hintPointerTo.style.display = 'none';
+        if (outlinePassSource) outlinePassSource.selectedObjects = [];
+        if (outlinePassDestination) outlinePassDestination.selectedObjects = [];
+    }
+
+    // --- Initialization ---
+    function init() {
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0xf0f2f5, 40, 150);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 18);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(10, 20, 10);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200), 
+            new THREE.MeshStandardMaterial({ roughness: 0.8 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        wall = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200),
+            new THREE.MeshStandardMaterial({ roughness: 0.8 })
+        );
+        wall.position.z = -15;
+        wall.visible = false;
+        scene.add(wall);
+
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+
+        setupPostProcessing();
+        
+        for (let i = 6; i <= 30; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            if (i === 6) option.selected = true;
+            tubeSelect.appendChild(option);
+        }
+        
+        const canvas = renderer.domElement;
+        window.addEventListener('resize', onWindowResize, false);
+        canvas.addEventListener('pointerdown', onPointerDown, false);
+        canvas.addEventListener('pointermove', onPointerMove, false);
+        restartBtn.addEventListener('click', restartGame);
+        applySettingsBtn.addEventListener('click', () => startGameFromSettings(false));
+        undoBtn.addEventListener('click', handleUndoClick);
+        addTubeBtn.addEventListener('click', handleAddTubeClick);
+        hintBtn.addEventListener('click', () => {
+            if (isSolving) {
+                stopSolver();
+            } else {
+                getHint();
+            }
+        });
+        if(autoSolveBtn) {
+            autoSolveBtn.addEventListener('click', () => {
+                if (isSolving) {
+                    stopSolver();
+                } else {
+                    startAutoSolver();
+                }
+            });
+        }
+        layoutToggleBtn.addEventListener('click', toggleLayout);
+        voiceToggleBtn.addEventListener('click', toggleVoiceGuidance);
+        settingsBtn.addEventListener('click', toggleSettingsModal);
+        newGameBtn.addEventListener('click', () => {
+            startGameFromSettings(true, true);
+        });
+        modalOverlay.addEventListener('click', toggleSettingsModal);
+        startButton.addEventListener('click', () => {
+            titleScreen.style.opacity = '0';
+            setTimeout(() => {
+                titleScreen.style.display = 'none';
+                gameContainer.style.display = 'block';
+                setTimeout(() => {
+                    gameContainer.style.opacity = '1';
+                    if (localStorage.getItem('tutorialCompleted') !== 'true') {
+                        startTutorial();
+                    }
+                }, 50);
+            }, 500);
+        });
+        nextLevelBtn.addEventListener('click', () => {
+            currentLevel++;
+            localStorage.setItem('ballSortLevel', currentLevel);
+            startGameFromSettings(true);
+        });
+
+        loadVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+        
+        currentLevel = parseInt(localStorage.getItem('ballSortLevel') || '1');
+        startGameFromSettings(true);
+        
+        animate();
+    }
+    
+    function setupPostProcessing() {
+        composer = new THREE.EffectComposer(renderer);
+        const renderPass = new THREE.RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        outlinePassSource = new THREE.OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+        outlinePassSource.edgeStrength = 5;
+        outlinePassSource.edgeGlow = 0.5;
+        outlinePassSource.edgeThickness = 2;
+        outlinePassSource.visibleEdgeColor.set('#007bff'); // Blue for source
+        composer.addPass(outlinePassSource);
+
+        outlinePassDestination = new THREE.OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+        outlinePassDestination.edgeStrength = 5;
+        outlinePassDestination.edgeGlow = 0.5;
+        outlinePassDestination.edgeThickness = 2;
+        outlinePassDestination.visibleEdgeColor.set('#28a745'); // Green for destination
+        composer.addPass(outlinePassDestination);
+
+        const effectFXAA = new THREE.ShaderPass(THREE.FXAAShader);
+        effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+        composer.addPass(effectFXAA);
+    }
+
+    function startGameFromSettings(isNextLevel = false, isShuffle = false) {
+        if (isSolving) stopSolver();
+        
+        let tubeCount;
+        if (isNextLevel && !isShuffle) {
+            tubeCount = Math.min(6 + currentLevel - 1, 30);
+            isSpecialStage = currentLevel > 0 && currentLevel % 5 === 0;
+        } else {
+            tubeCount = isShuffle ? TUBE_COUNT : parseInt(tubeSelect.value, 10);
+            if(!isShuffle) {
+                currentLevel = Math.max(1, tubeCount - 5);
+                localStorage.setItem('ballSortLevel', currentLevel);
+            }
+            isSpecialStage = false; 
+        }
+        
+        tubeSelect.value = tubeCount;
+        currentSceneTheme = themeSelect.value;
+        currentBallTheme = ballThemeSelect.value;
+        
+        let colorCount = tubeCount - (isSpecialStage ? 1 : 2);
+        
+        TUBE_COUNT = tubeCount;
+        CURRENT_BALL_COLORS = ALL_BALL_COLORS.slice(0, colorCount).filter(c => c !== undefined);
+        if (CURRENT_BALL_COLORS.length < colorCount) {
+            colorCount = CURRENT_BALL_COLORS.length;
+            TUBE_COUNT = colorCount + (isSpecialStage ? 1 : 2);
+        }
+
+        extraTubeAdded = false;
+        if (settingsModal.style.display === 'block') {
+            toggleSettingsModal();
+        }
+        setupGame();
+    }
+
+    function setupGame() {
+        isAnimating = false;
+        isSolving = false;
+        solverAttempt = 0;
+        clearGame();
+        applyTheme();
+        distributeBallsRandomly();
+        updateLayout();
+        
+        document.getElementById('level-display').textContent = `Level ${currentLevel}`;
+        document.getElementById('win-message').style.display = 'none';
+        setButtonsDisabled(false);
+    }
+    
+    function applyTheme() {
+        const theme = sceneThemes[currentSceneTheme];
+
+        if (starfield) {
+            scene.remove(starfield);
+            starfield = null;
+        }
+
+        if (theme.type === 'dynamic') {
+            if (currentSceneTheme === 'galaxy') {
+                starfield = createGalaxyBackground();
+                scene.add(starfield);
+            }
+            ground.visible = false;
+            wall.visible = false;
+        } else {
+            ground.visible = true;
+            if (ground.material.map) ground.material.map.dispose();
+            if (wall.material.map) wall.material.map.dispose();
+            
+            ground.material.map = theme.floor();
+            wall.material.map = theme.floor(); 
+            
+            ground.material.needsUpdate = true;
+            wall.material.needsUpdate = true;
+        }
+
+        scene.background = new THREE.Color(theme.background);
+        if (scene.fog) {
+            scene.fog.color.set(theme.fog);
+        }
+    }
+    
+    function distributeBallsRandomly() {
+        let allBalls = [];
+        CURRENT_BALL_COLORS.forEach(color => {
+            for (let i = 0; i < BALLS_PER_TUBE; i++) {
+                allBalls.push(color);
+            }
+        });
+
+        for (let i = allBalls.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [allBalls[i], allBalls[j]] = [allBalls[j], allBalls[i]];
+        }
+
+        tubeData = [];
+        for (let i = 0; i < TUBE_COUNT; i++) {
+            tubeData[i] = { balls: [], isComplete: false };
+        }
+        
+        let ballIndex = 0;
+        const tubesToFill = TUBE_COUNT - (isSpecialStage ? 1 : 2);
+        for (let i = 0; i < tubesToFill; i++) {
+            for (let j = 0; j < BALLS_PER_TUBE; j++) {
+                 if(allBalls[ballIndex]) {
+                    tubeData[i].balls.push(allBalls[ballIndex]);
+                    ballIndex++;
+                 }
+            }
+        }
+
+        initialTubeData = JSON.parse(JSON.stringify(tubeData));
+    }
+
+    function toggleLayout() {
+        if (isAnimating || isSolving) return;
+        currentLayout = (currentLayout === 'circle') ? 'grid' : 'circle';
+        updateLayout();
+    }
+    
+    function toggleSettingsModal() {
+        const display = settingsModal.style.display === 'block' ? 'none' : 'block';
+        settingsModal.style.display = display;
+        modalOverlay.style.display = display;
+    }
+
+    function toggleVoiceGuidance() {
+        isVoiceGuidanceEnabled = !isVoiceGuidanceEnabled;
+        voiceToggleBtn.classList.toggle('active', isVoiceGuidanceEnabled);
+        voiceToggleBtn.innerHTML = isVoiceGuidanceEnabled ? '🔊<span class="tooltip">音声 ON</span>' : '🎤<span class="tooltip">音声案内</span>';
+        if (!isVoiceGuidanceEnabled) {
+            synth.cancel();
+        }
+    }
+
+    function loadVoices() {
+        const voices = synth.getVoices();
+        japaneseVoice = voices.find(voice => voice.lang === 'ja-JP');
+    }
+
+    function speak(text) {
+        if (!isVoiceGuidanceEnabled || !synth) return;
+        synth.cancel(); // Stop any previous speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        if (japaneseVoice) {
+            utterance.voice = japaneseVoice;
+        }
+        utterance.rate = 1.2;
+        synth.speak(utterance);
+    }
+
+    function addLogMessage(message) {
+        const p = document.createElement('p');
+        p.textContent = message;
+        solverLog.insertBefore(p, solverLog.firstChild);
+        if (solverLog.children.length > 20) {
+            solverLog.removeChild(solverLog.lastChild);
+        }
+    }
+
+    function updateLayout() {
+        clearTubesFromScene();
+        if (ballMeshes.length === 0) {
+             createTubes();
+             createBallMeshes();
+        } else {
+             createTubes();
+             repositionAllBalls();
+        }
+        updateCameraForLayout();
+    }
+    
+    function updateCameraForLayout() {
+        const instructionsText = document.querySelector("#instructions b");
+        if (currentLayout === 'circle') {
+            controls.enabled = true;
+            controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+            ground.visible = true;
+            if (starfield) starfield.visible = false;
+            const radius = 6 + Math.max(0, TUBE_COUNT - 8) * 0.9;
+            camera.position.set(0, 10 + (TUBE_COUNT - 6) * 0.6, radius + 12);
+            controls.target.set(0, 0, 0);
+            if(instructionsText) instructionsText.textContent = "操作: 右ドラッグでカメラ回転 / 左クリックでボール選択";
+        } else { // grid (Frontal view)
+            controls.enabled = true; 
+            controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+            ground.visible = false;
+            if (starfield) starfield.visible = true;
+            const tubesPerRow = 10;
+            const numRows = Math.ceil(TUBE_COUNT / tubesPerRow);
+            const spacingY = TUBE_HEIGHT + 2.5;
+            
+            const gridVisualHeight = (numRows - 1) * spacingY + TUBE_HEIGHT;
+            const gridCenterY = gridVisualHeight / 2;
+            
+            const gridVisualWidth = (Math.min(TUBE_COUNT, tubesPerRow) - 1) * 2.5 + (0.6 * 2);
+            
+            const fov = camera.fov * (Math.PI / 180);
+            const distanceForHeight = (gridVisualHeight / 2) / Math.tan(fov / 2);
+            const distanceForWidth = (gridVisualWidth / 2) / (Math.tan(fov / 2) * camera.aspect);
+            const distance = Math.max(distanceForHeight, distanceForWidth) + 18;
+
+            camera.position.set(0, gridCenterY, distance);
+            controls.target.set(0, gridCenterY, 0); 
+            if(instructionsText) instructionsText.textContent = "操作: 右ドラッグで視点移動 / ホイールでズーム";
+        }
+        controls.update();
+    }
+
+    function createTubes() {
+        const tubeRadius = 0.6;
+        const hitboxRadius = tubeRadius + 0.4;
+        const tubeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xcccccc, transparent: true, opacity: 0.4, roughness: 0.2, metalness: 0.1
+        });
+        const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false });
+        
+        if (currentLayout === 'circle') {
+            const radius = 6 + Math.max(0, TUBE_COUNT - 8) * 0.9;
+            const angleStep = (Math.PI * 2) / TUBE_COUNT;
+            for (let i = 0; i < TUBE_COUNT; i++) {
+                const angle = i * angleStep;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const position = new THREE.Vector3(x, TUBE_HEIGHT / 2, z);
+                createTubeAt(i, position, tubeRadius, hitboxRadius, tubeMaterial, hitboxMaterial);
+            }
+        } else {
+            const spacingX = 2.5;
+            const spacingY = TUBE_HEIGHT + 2.5;
+            const numRows = Math.ceil(TUBE_COUNT / 10);
+            const gridHeight = (numRows - 1) * spacingY;
+
+            for (let i = 0; i < TUBE_COUNT; i++) {
+                const row = Math.floor(i / 10);
+                const col = i % 10;
+                
+                const tubesInThisRow = (row === numRows - 1 && TUBE_COUNT % 10 !== 0) ? TUBE_COUNT % 10 : 10;
+                const x = (col - (tubesInThisRow - 1) / 2) * spacingX;
+                const y = (gridHeight / 2) - (row * spacingY);
+                
+                const position = new THREE.Vector3(x, y, 0);
+                createTubeAt(i, position, tubeRadius, hitboxRadius, tubeMaterial, hitboxMaterial);
+            }
+        }
+    }
+
+    function createTubeAt(index, position, tubeRadius, hitboxRadius, tubeMaterial, hitboxMaterial) {
+        const tube = new THREE.Mesh(new THREE.CylinderGeometry(tubeRadius, tubeRadius, TUBE_HEIGHT, 32, 1, true), tubeMaterial);
+        tube.position.copy(position);
+        scene.add(tube);
+        tubes[index] = tube;
+        
+        const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(hitboxRadius, hitboxRadius, TUBE_HEIGHT, 8), hitboxMaterial);
+        hitbox.position.copy(position);
+        hitbox.userData = { id: index };
+        scene.add(hitbox);
+        tubeHitboxes[index] = hitbox;
+
+        const numberSprite = createNumberSprite(index + 1);
+        numberSprite.position.set(position.x, position.y + TUBE_HEIGHT / 2 + 1.2, position.z);
+        scene.add(numberSprite);
+        numberSprites[index] = numberSprite;
+    }
+    
+    function createBallMeshes() {
+        const ballRadius = 0.45;
+        const ballTheme = ballThemes[currentBallTheme];
+        const geometry = new THREE.SphereGeometry(ballRadius, 32, 32);
+        
+        ballMeshes = [];
+
+        emojiMap = {}; 
+        if (ballTheme.type === 'emoji') {
+            CURRENT_BALL_COLORS.forEach((color, index) => {
+                emojiMap[color] = ballTheme.characters[index % ballTheme.characters.length];
+            });
+        }
+        
+        const hiddenTexture = isSpecialStage ? createHiddenBallTexture() : null;
+
+        for (let i = 0; i < tubeData.length; i++) {
+            ballMeshes[i] = [];
+            for (let j = 0; j < tubeData[i].balls.length; j++) {
+                const colorValue = tubeData[i].balls[j];
+                let ballMaterial;
+                
+                const isHidden = isSpecialStage && j < tubeData[i].balls.length - 1;
+
+                if (isHidden) {
+                    ballMaterial = new THREE.MeshStandardMaterial({ map: hiddenTexture, roughness: 0.5, metalness: 0.1 });
+                } else if (ballTheme.type === 'emoji' && emojiMap[colorValue]) {
+                    const texture = createEmojiTexture(emojiMap[colorValue]);
+                    ballMaterial = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.5, metalness: 0.1 });
+                } else { 
+                    ballMaterial = new THREE.MeshStandardMaterial({ 
+                        color: colorValue, 
+                        roughness: 0.3, 
+                        metalness: 0.1 
+                    });
+                }
+                
+                const ball = new THREE.Mesh(geometry, ballMaterial);
+                ball.userData.originalColor = colorValue; // Store original color for reveal
+                ball.position.copy(getBallPosition(i, j));
+                ball.castShadow = true;
+                
+                scene.add(ball);
+                ballMeshes[i].push(ball);
+            }
+        }
+    }
+    
+    function clearGame() {
+        if(outlinePassSource) outlinePassSource.selectedObjects = [];
+        if(outlinePassDestination) outlinePassDestination.selectedObjects = [];
+        clearTubesFromScene();
+        ballMeshes.forEach(tubeBalls => tubeBalls.forEach(ball => {
+            if (ball.material.map) ball.material.map.dispose();
+            ball.material.dispose();
+            scene.remove(ball);
+        }));
+        particleEffects.forEach(effect => {
+            effect.group.children.forEach(child => {
+                child.geometry.dispose();
+                child.material.dispose();
+            });
+            scene.remove(effect.group);
+        });
+        
+        tubeData = []; ballMeshes = []; particleEffects = []; numberSprites = [];
+        moveHistory = [];
+        solverLog.innerHTML = "";
+        selectedTubeIndex = null; selectedBallMesh = null; isAnimating = false;
+        hideHintPointers();
+    }
+
+    function clearTubesFromScene(){
+        tubes.forEach(tube => scene.remove(tube));
+        tubeHitboxes.forEach(hitbox => scene.remove(hitbox));
+        numberSprites.forEach(sprite => scene.remove(sprite));
+        tubes = [];
+        tubeHitboxes = [];
+        numberSprites = [];
+    }
+
+    function repositionAllBalls() {
+        ballMeshes.forEach((balls, tubeIndex) => {
+            if (!tubes[tubeIndex]) return;
+            balls.forEach((ball, ballIndex) => {
+                animateBall(ball, getBallPosition(tubeIndex, ballIndex), null, 300);
+            });
+        });
+    }
+    
+    function restartGame() {
+        if (isAnimating || isSolving) return;
+        clearGame();
+        tubeData = JSON.parse(JSON.stringify(initialTubeData));
+        applyTheme();
+        updateLayout();
+        document.getElementById('win-message').style.display = 'none';
+        setButtonsDisabled(false);
+    }
+    
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+        updateLayout();
+    }
+    
+    function onPointerDown(event) {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (isAnimating || isSolving) return;
+        const intersects = getIntersections(event);
+        if (intersects.length > 0) handleTubeClick(intersects[0].object.userData.id);
+    }
+
+    function onPointerMove(event) {
+        if (isAnimating || selectedTubeIndex !== null || isSolving) {
+            document.body.style.cursor = 'default';
+            return;
+        };
+        const intersects = getIntersections(event);
+        if (intersects.length > 0 && canSelectBallFrom(intersects[0].object.userData.id)) {
+            document.body.style.cursor = 'pointer';
+        } else {
+            document.body.style.cursor = 'default';
+        }
+    }
+    
+    function getIntersections(event){
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ( (event.clientX - rect.left) / rect.width ) * 2 - 1;
+        mouse.y = - ( (event.clientY - rect.top) / rect.height ) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        return raycaster.intersectObjects(tubeHitboxes);
+    }
+
+    function handleTubeClick(clickedIndex) {
+        if (isAnimating) return;
+        hideHintPointers();
+        if (tutorialActive) {
+            advanceTutorial(clickedIndex);
+            return;
+        }
+        if (selectedTubeIndex === null) {
+            if (canSelectBallFrom(clickedIndex)) selectAndLiftBall(clickedIndex);
+        } 
+        else {
+            const movableStack = getMovableStack(selectedTubeIndex);
+            const availableSpace = BALLS_PER_TUBE - tubeData[clickedIndex].balls.length;
+            const actualStack = movableStack.slice(0, availableSpace);
+            if (isMoveValid(selectedTubeIndex, clickedIndex, actualStack.length)) {
+                moveStack(selectedTubeIndex, clickedIndex, actualStack);
+            } else {
+                returnBall(selectedTubeIndex);
+            }
+        }
+    }
+
+    function handleUndoClick() {
+        if (isAnimating || isSolving || moveHistory.length === 0) return;
+        isAnimating = true;
+        setButtonsDisabled(true);
+
+        const lastMove = moveHistory.pop();
+        const { from, to, stack } = lastMove;
+
+        tubeData[from].isComplete = false;
+        tubeData[to].isComplete = false;
+        
+        undoStack(from, to, stack);
+    }
+    
+    function handleAddTubeClick() {
+        if (isAnimating || isSolving || extraTubeAdded) return;
+        extraTubeAdded = true;
+        
+        TUBE_COUNT++;
+        
+        tubeData.push({ balls: [], isComplete: false });
+        ballMeshes.push([]);
+        initialTubeData.push({ balls: [], isComplete: false });
+        
+        updateLayout();
+    }
+    
+    function getMovableStack(fromIndex) {
+        const fromTube = tubeData[fromIndex].balls;
+        if (fromTube.length === 0) return [];
+        const topBallColor = fromTube[fromTube.length - 1];
+        let stack = [];
+        for (let i = fromTube.length - 1; i >= 0; i--) {
+            if (fromTube[i] === topBallColor) stack.push(ballMeshes[fromIndex][i]);
+            else break;
+        }
+        return stack.reverse();
+    }
+    
+    function canSelectBallFrom(index) {
+        return !tubeData[index].isComplete && tubeData[index].balls.length > 0;
+    }
+    
+    function isMoveValid(fromIndex, toIndex, stackSize) {
+        if (fromIndex === toIndex || stackSize === 0) return false;
+        const toTube = tubeData[toIndex].balls;
+        if (toTube.length === 0) return true;
+        const ballToMoveColor = tubeData[fromIndex].balls[tubeData[fromIndex].balls.length - 1];
+        const topBallInToTubeColor = toTube[toTube.length - 1];
+        return ballToMoveColor === topBallInToTubeColor;
+    }
+
+    function selectAndLiftBall(index) {
+        isAnimating = true;
+        selectedTubeIndex = index;
+        selectedBallMesh = ballMeshes[index][ballMeshes[index].length - 1];
+        highlightTube(index, true);
+        animateBall(selectedBallMesh, getLiftedPosition(index), () => { isAnimating = false; });
+    }
+    
+    function returnBall(fromIndex) {
+        isAnimating = true;
+        highlightTube(fromIndex, false);
+        animateBall(selectedBallMesh, getTopBallPosition(fromIndex), () => {
+            selectedTubeIndex = null;
+            selectedBallMesh = null;
+            isAnimating = false;
+        });
+    }
+    
+    function moveStack(fromIndex, toIndex, stack) {
+        if (!isSolving) {
+            const message = `${fromIndex + 1}番から ${toIndex + 1}番へ`;
+            addLogMessage(message);
+            speak(message);
+        }
+        isAnimating = true;
+        setButtonsDisabled(true);
+        if (!isSolving) {
+            highlightTube(fromIndex, false);
+        }
+        moveHistory.push({ from: fromIndex, to: toIndex, stack: stack });
+
+        const initialToTubeLength = tubeData[toIndex].balls.length;
+        let ballsInFlight = stack.length;
+        
+        stack.forEach((ballMesh, i) => {
+            const onAnimationComplete = () => {
+                ballsInFlight--;
+                if (ballsInFlight === 0) cleanupAfterMove();
+            };
+            
+            setTimeout(() => {
+                const color = tubeData[fromIndex].balls.pop();
+                const mesh = ballMeshes[fromIndex].pop();
+                const targetSlot = initialToTubeLength + i;
+                tubeData[toIndex].balls.push(color);
+                ballMeshes[toIndex].push(mesh);
+
+                if (isSpecialStage && tubeData[fromIndex].balls.length > 0) {
+                    const newTopBall = ballMeshes[fromIndex][tubeData[fromIndex].balls.length - 1];
+                    const originalColor = newTopBall.userData.originalColor;
+                    const ballTheme = ballThemes[currentBallTheme];
+                    let newMaterial;
+                    if (ballTheme.type === 'emoji') {
+                        newMaterial = new THREE.MeshStandardMaterial({ map: createEmojiTexture(emojiMap[originalColor]), roughness: 0.5, metalness: 0.1 });
+                    } else {
+                        newMaterial = new THREE.MeshStandardMaterial({ color: originalColor, roughness: 0.5, metalness: 0.1 });
+                    }
+                    newTopBall.material.dispose();
+                    newTopBall.material = newMaterial;
+                }
+
+                const targetPos = getBallPosition(toIndex, targetSlot);
+                
+                if (mesh === selectedBallMesh) {
+                    const liftedOverTarget = getLiftedPosition(toIndex, i);
+                    animateBall(mesh, liftedOverTarget, () => {
+                        animateBall(mesh, targetPos, onAnimationComplete);
+                    });
+                } else {
+                    const liftedAtOrigin = getLiftedPosition(fromIndex, i);
+                    const liftedOverTarget = getLiftedPosition(toIndex, i);
+                    animateBall(mesh, liftedAtOrigin, () => {
+                        animateBall(mesh, liftedOverTarget, () => {
+                            animateBall(mesh, targetPos, onAnimationComplete);
+                        });
+                    });
+                }
+            }, i * ANIMATION_DELAY);
+        });
+    }
+    
+    function undoStack(toIndex, fromIndex, stack) {
+        let ballsInFlight = stack.length;
+        const initialToTubeLength = tubeData[toIndex].balls.length;
+        
+        stack.reverse().forEach((ballMesh, i) => {
+            const onAnimationComplete = () => {
+                ballsInFlight--;
+                if (ballsInFlight === 0) {
+                    isAnimating = false;
+                    setButtonsDisabled(false);
+                }
+            };
+
+            setTimeout(() => {
+                const color = tubeData[fromIndex].balls.pop();
+                const mesh = ballMeshes[fromIndex].pop();
+                const targetSlot = initialToTubeLength + i;
+                tubeData[toIndex].balls.push(color);
+                ballMeshes[toIndex].push(mesh);
+
+                const targetPos = getBallPosition(toIndex, targetSlot);
+                const liftedOverOrigin = getLiftedPosition(fromIndex);
+                const liftedOverTarget = getLiftedPosition(toIndex, i);
+
+                animateBall(mesh, liftedOverOrigin, () => {
+                    animateBall(mesh, liftedOverTarget, () => {
+                        animateBall(mesh, targetPos, onAnimationComplete);
+                    });
+                });
+            }, i * ANIMATION_DELAY);
+        });
+    }
+
+    function cleanupAfterMove() {
+        selectedTubeIndex = null;
+        selectedBallMesh = null;
+        isAnimating = false;
+        const isWon = checkCompletion();
+        if (!isSolving) {
+            setButtonsDisabled(false);
+        }
+    }
+
+    function getBallPosition(tubeIndex, ballIndex) {
+        const tube = tubes[tubeIndex];
+        const ballRadius = 0.45;
+        const y = tube.position.y - (TUBE_HEIGHT/2) + 0.5 + ballRadius + (ballRadius * 2 * ballIndex);
+        return new THREE.Vector3(tube.position.x, y, tube.position.z);
+    }
+    
+    function getTopBallPosition(tubeIndex) {
+        const tube = tubeData[tubeIndex].balls;
+        return getBallPosition(tubeIndex, tube.length > 0 ? tube.length - 1 : 0);
+    }
+
+    function getLiftedPosition(tubeIndex, stackOffset = 0) {
+        const tube = tubes[tubeIndex];
+        const ballRadius = 0.45;
+        const y = tube.position.y + TUBE_HEIGHT / 2 + 1.5 + stackOffset * (ballRadius * 2);
+        return new THREE.Vector3(tube.position.x, y, tube.position.z);
+    }
+
+    function animateBall(ball, toPosition, onComplete, overrideDuration) {
+        const fromPosition = ball.position.clone();
+        let progress = 0;
+        const duration = overrideDuration || 25;
+        function step() {
+            progress++;
+            const t = Math.min(progress / duration, 1);
+            const easedT = 1 - Math.pow(1 - t, 3); // easeOutCubic
+            ball.position.lerpVectors(fromPosition, toPosition, easedT);
+            if (t < 1) requestAnimationFrame(step);
+            else { ball.position.copy(toPosition); if (onComplete) onComplete(); }
+        }
+        step();
+    }
+
+    function highlightTube(index, isSelected) {
+        outlinePassSource.selectedObjects = isSelected ? [tubes[index]] : [];
+        outlinePassDestination.selectedObjects = [];
+    }
+    
+    function handleWin() {
+        isAnimating = false;
+        triggerWinAnimation();
+        setButtonsDisabled(true); 
+        settingsBtn.disabled = false;
+        restartBtn.disabled = false;
+        layoutToggleBtn.disabled = false;
+    }
+
+    function checkCompletion() {
+        let sortedTubeCount = 0;
+        tubeData.forEach((tube, index) => {
+            const balls = tube.balls;
+            const isNowComplete = balls.length === BALLS_PER_TUBE && balls.every(c => c === balls[0]);
+            
+            if (isNowComplete && !tube.isComplete) {
+                tube.isComplete = true;
+                createCompletionEffect(tubes[index].position, balls[0]);
+            }
+            if (!isNowComplete) tube.isComplete = false;
+            if (isNowComplete || balls.length === 0) sortedTubeCount++;
+        });
+
+        if (sortedTubeCount === TUBE_COUNT) {
+            handleWin();
+            return true;
+        }
+        return false;
+    }
+
+    function createCompletionEffect(position, color) {
+        const particleCount = 30;
+        const particles = [];
+        const particleGroup = new THREE.Group();
+        const particleMaterial = new THREE.MeshBasicMaterial({ color: color, transparent: true });
+
+        for (let i = 0; i < particleCount; i++) {
+            const particleSize = Math.random() * 0.1 + 0.05;
+            const particleGeometry = new THREE.SphereGeometry(particleSize, 4, 4);
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone());
+
+            const launchAngle = Math.random() * Math.PI * 2;
+            const launchSpeed = Math.random() * 0.05 + 0.02;
+
+            particle.position.set(position.x, position.y + TUBE_HEIGHT / 2, position.z);
+            particle.userData.velocity = new THREE.Vector3(
+                Math.cos(launchAngle) * launchSpeed,
+                Math.random() * 0.1 + 0.05,
+                Math.sin(launchAngle) * launchSpeed
+            );
+            particle.userData.lifespan = 1.0;
+            particles.push(particle);
+            particleGroup.add(particle);
+        }
+        scene.add(particleGroup);
+        particleEffects.push({ group: particleGroup, particles: particles });
+    }
+    
+    function animateParticles() {
+        for (let i = particleEffects.length - 1; i >= 0; i--) {
+            const effect = particleEffects[i];
+            let allDead = true;
+            effect.particles.forEach(p => {
+                if (p.userData.lifespan > 0) {
+                    allDead = false;
+                    p.position.add(p.userData.velocity);
+                    p.userData.velocity.y -= 0.002;
+                    p.userData.lifespan -= 0.015;
+                    p.material.opacity = p.userData.lifespan;
+                }
+            });
+            
+            if (allDead) {
+                scene.remove(effect.group);
+                particleEffects.splice(i, 1);
+            }
+        }
+    }
+    
+    function setButtonsDisabled(disabled) {
+        undoBtn.disabled = disabled || moveHistory.length === 0;
+        restartBtn.disabled = disabled;
+        addTubeBtn.disabled = disabled || extraTubeAdded;
+        hintBtn.disabled = disabled;
+        if(autoSolveBtn) autoSolveBtn.disabled = disabled;
+        layoutToggleBtn.disabled = disabled;
+        settingsBtn.disabled = disabled;
+        voiceToggleBtn.disabled = disabled;
+    }
+
+    function getHint() {
+        if (isAnimating || isSolving) return;
+        
+        isSolving = true;
+        hintBtn.innerHTML = '💡<span class="tooltip">探索中...</span>';
+        hintBtn.classList.add('searching');
+        setActionButtonsDisabled(true);
+
+        solverWorker = new Worker(workerUrl);
+        
+        solverWorker.onmessage = (e) => {
+            const solution = e.data;
+            if (solution && solution.length > 0) {
+                const move = solution[0];
+                showHint(move);
+            } else {
+                console.log("Solver could not find a solution.");
+                stopSolver();
+            }
+        };
+        
+        solverWorker.onerror = (e) => {
+            console.error('Worker error:', e);
+            stopSolver();
+        }
+
+        const currentTubeDataForSolver = tubeData.map(t => t.balls.slice());
+        solverWorker.postMessage({ tubeData: currentTubeDataForSolver, TUBE_COUNT: TUBE_COUNT, BALLS_PER_TUBE: BALLS_PER_TUBE });
+    }
+
+    function startAutoSolver() {
+        if (isAnimating || isSolving) return;
+        
+        isSolving = true;
+        autoSolveBtn.classList.add('searching');
+        setActionButtonsDisabled(true);
+
+        solverWorker = new Worker(workerUrl);
+        
+        solverWorker.onmessage = (e) => {
+            const solution = e.data;
+            if (solution && solution.length > 0) {
+                animateSolution(solution);
+            } else {
+                console.log("Solver could not find a solution.");
+                stopSolver();
+            }
+        };
+        
+        solverWorker.onerror = (e) => {
+            console.error('Worker error:', e);
+            stopSolver();
+        }
+
+        const currentTubeDataForSolver = tubeData.map(t => t.balls.slice());
+        solverWorker.postMessage({ tubeData: currentTubeDataForSolver, TUBE_COUNT: TUBE_COUNT, BALLS_PER_TUBE: BALLS_PER_TUBE });
+    }
+
+    function stopSolver() {
+        if (solverWorker) {
+            solverWorker.terminate();
+            solverWorker = null;
+        }
+        isSolving = false;
+        hintBtn.innerHTML = '💡<span class="tooltip">ヒント</span>';
+        hintBtn.classList.remove('searching');
+        if (autoSolveBtn) {
+            autoSolveBtn.innerHTML = '🤖<span class="tooltip">自動で解く</span>';
+            autoSolveBtn.classList.remove('searching');
+        }
+        if (synth && isVoiceGuidanceEnabled) synth.cancel();
+        outlinePassSource.selectedObjects = [];
+        outlinePassDestination.selectedObjects = [];
+        const isWon = checkCompletion();
+        if (!isWon) {
+            setActionButtonsDisabled(false);
+        }
+    }
+    
+    function setActionButtonsDisabled(disabled) {
+        undoBtn.disabled = disabled;
+        restartBtn.disabled = disabled;
+        addTubeBtn.disabled = disabled;
+        hintBtn.disabled = disabled;
+        if(autoSolveBtn) autoSolveBtn.disabled = disabled;
+        layoutToggleBtn.disabled = disabled;
+        settingsBtn.disabled = disabled;
+        voiceToggleBtn.disabled = disabled;
+    }
+
+    function showHint(move) {
+        const logMessage = `${move.from + 1}番から ${move.to + 1}番への移動が良いです！`;
+        addLogMessage(logMessage);
+        speak(logMessage);
+
+        outlinePassSource.selectedObjects = [tubes[move.from]];
+        outlinePassDestination.selectedObjects = [tubes[move.to]];
+
+        isSolving = false;
+        setActionButtonsDisabled(false);
+    }
+    
+    function toScreenPosition(pos, camera) {
+        const vector = pos.clone();
+        const canvas = renderer.domElement;
+        vector.project(camera);
+        vector.x = Math.round((0.5 + vector.x / 2) * canvas.width);
+        vector.y = Math.round((0.5 - vector.y / 2) * canvas.height);
+        return vector;
+    }
+
+    function triggerWinAnimation() {
+        const container = document.getElementById('confetti-container');
+        container.innerHTML = '';
+        for (let i = 0; i < 100; i++) {
+            const confetti = document.createElement('div');
+            confetti.classList.add('confetti');
+            confetti.style.left = Math.random() * 100 + 'vw';
+            confetti.style.animationDuration = Math.random() * 3 + 2 + 's';
+            confetti.style.animationDelay = Math.random() * 2 + 's';
+            confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            container.appendChild(confetti);
+        }
+        winMessage.style.display = 'block';
+    }
+
+    function startTutorial() {
+        let validTutorialMove = null;
+        for (let from = 0; from < TUBE_COUNT; from++) {
+            if (tubeData[from].balls.length > 0) {
+                const topColor = tubeData[from].balls[tubeData[from].balls.length - 1];
+                for (let to = 0; to < TUBE_COUNT; to++) {
+                    if (from === to) continue;
+                    if (tubeData[to].balls.length < BALLS_PER_TUBE && (tubeData[to].length === 0 || tubeData[to].balls[tubeData[to].balls.length - 1] === topColor)) {
+                        validTutorialMove = { from, to };
+                        break;
+                    }
+                }
+            }
+            if (validTutorialMove) break;
+        }
+
+        if (!validTutorialMove) {
+            localStorage.setItem('tutorialCompleted', 'true');
+            return;
+        }
+        
+        tutorialMove = validTutorialMove;
+        tutorialActive = true;
+        tutorialStep = 1;
+        updateTutorialUI();
+    }
+
+    function updateTutorialUI() {
+        if (!tutorialActive) return;
+
+        if (tutorialStep === 1) {
+            tutorialOverlay.style.display = 'flex';
+            tutorialText.textContent = 'まず、ボールを移動させたい試験管をクリックします。';
+            const fromTubePos = toScreenPosition(tubes[tutorialMove.from].position, camera);
+            tutorialPointer.style.left = `${fromTubePos.x}px`;
+            tutorialPointer.style.top = `${fromTubePos.y}px`;
+            tutorialPointer.style.display = 'block';
+        } else if (tutorialStep === 2) {
+            tutorialText.textContent = '次に、移動先の試験管をクリックします。';
+            const toTubePos = toScreenPosition(tubes[tutorialMove.to].position, camera);
+            tutorialPointer.style.left = `${toTubePos.x}px`;
+            tutorialPointer.style.top = `${toTubePos.y}px`;
+        } else if (tutorialStep === 3) {
+            tutorialPointer.style.display = 'none';
+            tutorialText.textContent = 'これで完了です！ゲームを楽しんでください！';
+            setTimeout(() => {
+                tutorialOverlay.style.display = 'none';
+                tutorialActive = false;
+                localStorage.setItem('tutorialCompleted', 'true');
+            }, 2000);
+        }
+    }
+
+    function advanceTutorial(clickedIndex) {
+        if (!tutorialActive) return;
+
+        if (tutorialStep === 1 && clickedIndex === tutorialMove.from) {
+            selectAndLiftBall(clickedIndex);
+            tutorialStep = 2;
+            setTimeout(updateTutorialUI, 100);
+        } else if (tutorialStep === 2 && clickedIndex === tutorialMove.to) {
+            const movableStack = getMovableStack(selectedTubeIndex);
+            const availableSpace = BALLS_PER_TUBE - tubeData[clickedIndex].balls.length;
+            const actualStack = movableStack.slice(0, availableSpace);
+            if (isMoveValid(selectedTubeIndex, clickedIndex, actualStack.length)) {
+                moveStack(selectedTubeIndex, clickedIndex, actualStack);
+                tutorialStep = 3;
+                setTimeout(updateTutorialUI, 500);
+            }
+        }
+    }
+    
+    function animateSolution(path) {
+        let i = 0;
+        isAnimating = true;
+
+        function nextMove() {
+            if (i >= path.length || !isSolving) {
+                isAnimating = false;
+                stopSolver();
+                return;
+            }
+            const move = path[i];
+            
+            const logMessage = `${move.from + 1}番から ${move.to + 1}番へ`;
+            const voiceMessage = `${move.from + 1}, ${move.to + 1}`;
+            addLogMessage(logMessage);
+            speak(voiceMessage);
+            
+            outlinePassSource.selectedObjects = [tubes[move.from]];
+            outlinePassDestination.selectedObjects = [tubes[move.to]];
+            
+            const stack = getMovableStack(move.from).slice(0, move.count);
+            moveStack(move.from, move.to, stack);
+            
+            const maxAnimTime = (stack.length * ANIMATION_DELAY) + 900;
+            setTimeout(() => {
+                i++;
+                nextMove();
+            }, maxAnimTime);
+        }
+        nextMove();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        
+        const delta = clock.getDelta();
+        
+        if (starfield) {
+            starfield.rotation.x += 0.0001;
+            starfield.rotation.y += 0.0002;
+        }
+        
+        const ballTheme = ballThemes[currentBallTheme];
+        if (ballTheme.type === 'emoji') {
+            const cameraPosition = new THREE.Vector3();
+            camera.getWorldPosition(cameraPosition);
+            for (const tube of ballMeshes) {
+                for (const ball of tube) {
+                    ball.lookAt(cameraPosition);
+                }
+            }
+        }
+        
+        if (outlinePassDestination.selectedObjects.length > 0) {
+            const fromTube = outlinePassSource.selectedObjects[0];
+            const toTube = outlinePassDestination.selectedObjects[0];
+            if (fromTube && toTube) {
+                 const fromPos = new THREE.Vector3(fromTube.position.x, fromTube.position.y + TUBE_HEIGHT / 2 + 2, fromTube.position.z);
+                 const toPos = new THREE.Vector3(toTube.position.x, toTube.position.y + TUBE_HEIGHT / 2 + 2, toTube.position.z);
+                 const fromScreenPos = toScreenPosition(fromPos, camera);
+                 const toScreenPos = toScreenPosition(toPos, camera);
+                 hintPointerFrom.style.left = `${fromScreenPos.x}px`;
+                 hintPointerFrom.style.top = `${fromScreenPos.y}px`;
+                 hintPointerTo.style.left = `${toScreenPos.x}px`;
+                 hintPointerTo.style.top = `${toScreenPos.y}px`;
+            }
+        }
+        
+        if (tutorialActive) {
+            updateTutorialUI();
+        }
+
+        animateParticles();
+        composer.render();
+    }
+
+    init();
+    </script>
+</body>
+</html>
